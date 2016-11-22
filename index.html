@@ -1,0 +1,332 @@
+
+<!--  File: nh.html    -->
+<!--  Contructs a map displaying population density using a .json file for New Hampshire -->
+<!--  Input: .json file -->
+<!--  Assignment 6 - UCSC CMPS165: Fall 2016 -->
+<!--  Student: Conner Powell -->
+<!--  Collaborator: Lon Blauvelt, Also consulted Victor Yankoff -->
+  
+
+<!DOCTYPE html>
+<meta charset="utf-8">
+<style>
+
+svg {
+  font: 10px sans-serif;
+}
+
+.caption {
+  font-weight: bold;
+}
+
+.key path {
+  display: none;
+}
+
+.key line {
+  stroke: ;
+  shape-rendering: crispEdges;
+}
+
+.county-border {
+  fill: none;
+  stroke: #000;
+  stroke-opacity: .3;
+}
+
+</style>
+<body>
+    
+<div style="text-align:center;">
+<h1 style=""> New Hampshire Population Density </h1>
+    <p style="front-size:40%">Conner Powell</p>
+    <p style="front-size:40%">Instructor: Suresh Lodha</p>
+    <p style="front-size:40%">CMPS 165: Data programming for Visualization</p>
+    <p style="front-size:40%">Fall 2016</p>
+    
+    
+</div>
+    
+<!-- Generate buttons, set the buttons location below the key -->
+<div style="position: absolute; inline:block; margin-top:100px; margin-left:440px;">
+  <button type="button" style="width=30px; height:30px;" onClick="swapColor()">Swap Colors</button> 
+  <button type="button" style="width=30px; height:30px;" onClick="togTract()">Tract Boundaries</button> 
+  <button type="button" style="width=30px; height:30px;" onClick="togState()">State Boundary</button> 
+</div>    
+    
+
+    
+<script src="d3.js"></script>
+<script src="topojson.js"></script>
+<script>
+
+    
+//Calls and returns the projection and "centers" it    
+function getPath() {
+
+var projection = d3.geo.albers()
+    .center([0, 52])
+    .scale(24000)
+    .translate([-7000, -1800])
+    .precision(.1);
+
+var path = d3.geo.path()
+    .projection(projection);
+    
+    
+    return path
+}
+
+    
+//initally set color scheme to red
+//domain is population, the density increases with darkness
+var color = d3.scale.threshold()
+    .domain([1, 10, 50, 100, 500, 1000, 2000, 5000])
+    .range(["#fff7ec", "#fee8c8", "#fdd49e", "#fdbb84", "#fc8d59", "#ef6548", "#d7301f", "#b30000", "#7f0000"]);
+
+    
+var width = 960,
+    height = 1800;
+
+var formatNumber = d3.format(",d");    
+    
+// scale for the key
+var x = d3.scale.linear()
+    .domain([0, 5100])
+    .range([0, 480]);
+
+var xAxis = d3.svg.axis()
+    .scale(x)
+    .orient("bottom")
+    .tickSize(13)
+    .tickValues(color.domain())
+    .tickFormat(function(d) { return d >= 100 ? formatNumber(d) : null; });
+
+var svg = d3.select("body").append("svg")
+    .attr("width", width)
+    .attr("height", height);
+
+    
+//place the key in the right corner
+var g = svg.append("g")
+    .attr("class", "key")
+    .attr("transform", "translate(440,40)");
+
+//make & set color of rectangles 
+//set with of first rectangle, start the next where the prior ends
+//fill with assoicating color in range, ranges has 9, start at 1
+g.selectAll("rect")
+    .data(color.range().map(function(d, i) {
+      return {
+        x0: i ? x(color.domain()[i - 1]) : x.range()[0],
+        x1: i < color.domain().length ? x(color.domain()[i]) : x.range()[1],
+        z: d
+      };
+    }))
+  .enter().append("rect")
+    .attr("height", 8)
+    .attr("x", function(d) { return d.x0; })
+    .attr("width", function(d) { return d.x1 - d.x0; })
+    .style("fill", function(d) { return d.z; });
+
+    
+    
+g.call(xAxis).append("text")
+    .attr("class", "caption")
+    .attr("y", -6)
+    .text("Population per square mile");
+    
+    
+//call .json file
+d3.json("nh.json", function(error, ca) {
+  if (error) throw error;
+
+  var tracts = topojson.feature(ca, ca.objects.tracts);
+
+  //call projection!!    
+  path = getPath()
+
+  
+
+  // Group tracts by color for faster rendering.
+  svg.append("g")
+      .attr("class", "tract")
+      .attr("clip-path", "url(#clip-land)")
+    .selectAll("path")
+      .data(d3.nest()
+        .key(function(d) { return color(d.properties.population / d.properties.area * 2.58999e6); })
+    .entries(tracts.features.filter(function(d) { return d.properties.area; })))
+    .enter().append("path")
+      .style("fill", function(d) { return d.key; })
+      .attr("d", function(d) { return path({type: "FeatureCollection", features: d.values}); });
+      
+  // Draw county borders.
+  svg.append("path")
+      .datum(topojson.mesh(ca, ca.objects.counties, function(a, b) { return a !== b; }))
+      .attr("class", "county-border")
+      .attr("d", path);
+});
+
+//Hack for bl.ocks~~
+d3.select(self.frameElement).style("height", height + "px");
+    
+    
+//initialize colorswitch false, records & changes after click
+//recall .json with two color ranges
+toggleColor = false
+function swapColor() {
+  d3.json("nh.json", function(error, ca) {
+    if (error) throw error;
+    red = ["#fff7ec", "#fee8c8", "#fdd49e", "#fdbb84", "#fc8d59", "#ef6548", "#d7301f", "#b30000", "#7f0000"]
+    grn = ["#ffffe5","#f7fcb9","#d9f0a3","#addd8e","#78c679","#41ab5d","#238443","#006837","#004529"]
+    var color = d3.scale.threshold().domain([1, 10, 50, 100, 500, 1000, 2000, 5000])
+    path = getPath()
+    // Clip tracts to land.
+    svg.append("defs").append("clipPath")
+        .attr("id", "clip-land")
+      .append("path")
+        .datum(topojson.feature(ca, ca.objects.tracts))
+        .attr("d", path);
+  
+    if (toggleColor) {
+      color.range(red)
+      console.log ("True: " + toggleColor)
+    } else {
+      color.range(grn)
+      console.log ("False: " + toggleColor)
+    }
+    toggleColor = !toggleColor;
+      
+    //generate new key, same location  
+    var g = svg.append("g")
+        .attr("class", "key")
+        .attr("transform", "translate(440,40)");
+    g.selectAll("rect")
+        .data(color.range().map(function(d, i) {
+          return {
+            x0: i ? x(color.domain()[i - 1]) : x.range()[0],
+            x1: i < color.domain().length ? x(color.domain()[i]) : x.range()[1],
+            z: d
+          };
+        }))
+      .enter().append("rect")
+        .attr("height", 8)
+        .attr("x", function(d) { return d.x0; })
+        .attr("width", function(d) { return d.x1 - d.x0; })
+        .style("fill", function(d) { return d.z; });
+      var tracts = topojson.feature(ca, ca.objects.tracts);
+      // Group tracts by color for faster rendering.
+      svg.append("g")
+          .attr("class", "tract")
+          .attr("clip-path", "url(#clip-land)")
+        .selectAll("path")
+          .data(d3.nest()
+            .key(function(d) { return color(d.properties.population / d.properties.area * 2.58999e6); })
+            .entries(tracts.features.filter(function(d) { return d.properties.area; })))
+        .enter().append("path")
+          .style("fill", function(d) { return d.key; })
+          .attr("d", function(d) { return path({type: "FeatureCollection", features: d.values}); });
+      path = getPath()
+      
+      // Draw county borders.
+      svg.append("path")
+          .datum(topojson.mesh(ca, ca.objects.counties, function(a, b) { return a !== b; }))
+          .attr("class", "county-border")
+          .attr("d", path); 
+      
+      
+      // Check if the tracts needs to be shows
+      //
+      if (toggleTract > 0) {
+        if (tractPath !== null) {
+          tractPath.remove()
+        }
+        
+        if (isEven(toggleTract)) {
+          // Draw county borders.
+          if (tractPath !== null) {
+            tractPath.remove()
+          }
+        } else {
+          // Draw county borders.
+          tractPath = svg.append("path")
+              .datum(topojson.mesh(ca, ca.objects.tracts, function(a, b) { return a !== b; }))
+              .attr("class", "county-border")
+              .attr("d", path);
+          console.log ("False: " + toggleTract)
+        }
+      }
+  });
+}
+
+//on/off for cenus tracts
+//reload th .json for ease and call projection
+//if button clicked turn tracts on, 
+//when clicked twice, turn off
+//start at 0, even, off, +1 w/ button
+colorTract = true
+var toggleTract = 0 
+tractPath = null
+function togTract() {
+  d3.json("nh.json", function(error, ca) {
+    if (error) throw error;
+    path = getPath()
+    if (!isEven(toggleTract)) {
+      // Draw county borders.
+      tractPath.remove()
+    } else {
+      // Draw county borders.
+      // Clip tracts to land.
+      svg.append("defs").append("clipPath")
+          .attr("id", "clip-land")
+        .append("path")
+          .datum(topojson.feature(ca, ca.objects.tracts))
+          .attr("d", path);
+      tractPath = svg.append("path")
+          .datum(topojson.mesh(ca, ca.objects.tracts, function(a, b) { return a !== b; }))
+          .attr("class", "county-border")
+          .attr("d", path);
+      console.log ("False: " + toggleTract)
+    }
+    toggleTract += 1
+  });
+}
+
+var toggleState = 0
+statePath = null
+function togState() {
+  d3.json("nh.json", function(error, ca) {
+    if (error) throw error;
+    if (!isEven(toggleState)) {
+      statePath.remove()
+    } else {
+      path = getPath()
+      statePath = svg.append("path")
+          .datum(topojson.mesh(ca, ca.objects.tracts, function(a, b) { return a === b; }))
+          .attr("class", "state-border")
+          .attr("d", path);
+    }
+    toggleState += 1
+  });
+}
+function isEven(n) {
+  return n == parseFloat(n)? !(n%2) : void 0;
+}
+// Use strict equality === for "is number" test
+function isEvenStrict(n) {
+  return n === parseFloat(n)? !(n%2) : void 0;
+}
+    
+</script>
+    
+<style>
+.state-border-none {
+  fill: none;
+  stroke-opacity: .1;
+}
+.state-border {
+  fill: none;
+  stroke: #000;
+  
+}
+</style>   
